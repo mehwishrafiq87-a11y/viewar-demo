@@ -274,72 +274,130 @@
         color: #ffffff;
       }
       .ar-button {
-        background: #00d4ff;
+        background: #00c896;
         color: #0a0f1e;
         border: none;
         border-radius: 10px;
-        padding: 12px 18px;
-        font-size: 15px;
+        padding: 12px;
+        font-size: 14px;
         font-weight: 700;
         cursor: pointer;
         font-family: inherit;
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
-        transition: transform 0.15s ease, box-shadow 0.2s ease;
+        width: 100%;
+        transition: opacity 0.2s ease;
       }
       .ar-button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 0 28px rgba(0, 212, 255, 0.55);
+        opacity: 0.85;
       }
 
-      /* ---------- CTA section ---------- */
+      /* ---------- AR Modal ---------- */
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .modal.open {
+        display: flex;
+      }
+      .modal-box {
+        background: #111827;
+        border: 1px solid rgba(0,212,255,0.3);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 520px;
+        overflow: hidden;
+      }
+      .modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(0,212,255,0.15);
+      }
+      .modal-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+      .close-btn {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 22px;
+        cursor: pointer;
+        line-height: 1;
+      }
+      model-viewer {
+        width: 100%;
+        height: 70vh;
+        max-height: 480px;
+        background: #0d1526;
+        display: block;
+      }
+      .ar-launch {
+        background: #00d4ff;
+        color: #0a0f1e;
+        border: none;
+        border-radius: 30px;
+        padding: 12px 24px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        box-shadow: 0 0 20px rgba(0,212,255,0.4);
+      }
+
+      /* ---------- CTA ---------- */
       .cta {
         background: #0d1526;
-        padding: 80px 24px;
         text-align: center;
+        padding: 96px 24px;
       }
       .cta h2 {
         font-size: 36px;
         font-weight: 800;
-        letter-spacing: -0.4px;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
       }
       .cta p {
         color: #94a3b8;
-        font-size: 17px;
-        max-width: 640px;
-        margin: 0 auto 28px;
-      }
-      .cta .btn-cyan {
-        padding: 16px 32px;
         font-size: 16px;
-        border-radius: 12px;
+        max-width: 600px;
+        margin: 0 auto 32px;
       }
-      .cta .fineprint {
+      .fineprint {
+        margin-top: 16px;
         color: #94a3b8;
         font-size: 13px;
-        margin-top: 18px;
       }
 
       /* ---------- Footer ---------- */
       .footer {
         background: #0a0f1e;
-        border-top: 1px solid rgba(0, 212, 255, 0.2);
-        padding: 28px 40px;
+        border-top: 1px solid rgba(0,212,255,0.2);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 16px;
+        padding: 22px 40px;
         flex-wrap: wrap;
+        gap: 12px;
       }
       .footer-left {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 12px;
       }
       .footer-logo {
         height: 40px;
         width: auto;
-        display: block;
       }
       .footer-tag {
         color: #94a3b8;
@@ -350,81 +408,35 @@
         font-size: 13px;
       }
 
-      /* ---------- Modal ---------- */
-      .modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.78);
+      /* ---------- Direct AR viewer mode ---------- */
+      .ar-direct-mode {
         display: none;
+        width: 100vw;
+        height: 100vh;
+        background: #0a0f1e;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        z-index: 100;
-        padding: 16px;
       }
-      .modal.open {
+      .ar-direct-mode.active {
         display: flex;
       }
-      .modal-box {
-        background: #0a0f1e;
-        border: 1px solid rgba(0, 212, 255, 0.35);
-        border-radius: 16px;
-        width: 100%;
-        max-width: 760px;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        box-shadow: 0 0 40px rgba(0, 212, 255, 0.2);
+      .ar-direct-mode model-viewer {
+        width: 100vw;
+        height: 85vh;
+        max-height: none;
       }
-      .modal-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px 20px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      }
-      .modal-title {
+      .ar-direct-title {
+        color: #ffffff;
         font-size: 16px;
         font-weight: 600;
-      }
-      .close-btn {
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        font-size: 26px;
-        line-height: 1;
-        cursor: pointer;
-        padding: 4px 8px;
-      }
-      model-viewer {
-        width: 100%;
-        height: 70vh;
-        background: #111827;
-      }
-      .ar-launch {
-        background: #00d4ff;
-        color: #0a0f1e;
-        border: none;
-        border-radius: 999px;
-        padding: 12px 22px;
-        font-size: 14px;
-        font-weight: 700;
-        cursor: pointer;
-        font-family: inherit;
-        position: absolute;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+        padding: 12px 0 4px;
       }
 
       /* ---------- Responsive ---------- */
-      @media (max-width: 800px) {
+      @media (max-width: 640px) {
         .navbar {
           padding: 12px 20px;
-        }
-        .nav-links {
-          gap: 14px;
         }
         .nav-links a.link {
           display: none;
@@ -464,239 +476,273 @@
     </style>
   </head>
   <body>
-    <!-- Navigation -->
-    <nav class="navbar">
-      <a href="#top">
-        <img
-          class="nav-logo"
-          src="https://i.postimg.cc/Zq7Jycjq/Whats-App-Image-2026-04-20-at-01-53-48-removebg-preview.png"
-          alt="Jay Quantum"
-        />
-      </a>
-      <div class="nav-links">
-        <a class="link" href="#features">Features</a>
-        <a class="link" href="#industries">Industries</a>
-        <a class="link" href="#pricing">Pricing</a>
-        <a class="link" href="mailto:hello@jayquantum.com">Contact</a>
-        <button class="btn-cyan" onclick="location.href='mailto:hello@jayquantum.com'">
-          Get Started
+
+    <!-- Direct AR viewer mode (activated when ?model= param exists) -->
+    <div class="ar-direct-mode" id="ar-direct-mode">
+      <model-viewer
+        id="ar-direct-viewer"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+        camera-controls
+        auto-rotate
+        shadow-intensity="1"
+        alt="3D product in AR"
+        style="width:100vw;height:85vh;max-height:none;"
+      >
+        <button class="ar-launch" slot="ar-button">
+          View in Your Space (AR)
         </button>
-      </div>
-    </nav>
-
-    <!-- Hero -->
-    <section class="hero" id="top">
-      <span class="badge">Powered by AI + Augmented Reality</span>
-      <h1>Let Your Customers Experience Products Before They Buy</h1>
-      <p class="sub">
-        Jay Quantum ViewAR transforms how businesses showcase products —
-        bringing furniture, food, real estate and retail to life in augmented
-        reality, directly in your customer's space.
-      </p>
-      <div class="hero-buttons">
-        <button class="btn-cyan" onclick="document.getElementById('industries').scrollIntoView({behavior:'smooth'})">
-          View Live Demo
-        </button>
-        <button class="btn-outline" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">
-          Book Free Demo Call
-        </button>
-      </div>
-      <div class="hero-stats">
-        <div class="stat">
-          <div class="num">500+</div>
-          <div class="lbl">AR Sessions</div>
-        </div>
-        <div class="stat">
-          <div class="num">4</div>
-          <div class="lbl">Industries</div>
-        </div>
-        <div class="stat">
-          <div class="num">Any</div>
-          <div class="lbl">Works on Any Device</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Trust bar -->
-    <section class="trust" id="features">
-      <div class="trust-grid">
-        <div>
-          <div class="metric">10x</div>
-          <div class="label">Higher Engagement</div>
-        </div>
-        <div>
-          <div class="metric">40%</div>
-          <div class="label">More Conversions</div>
-        </div>
-        <div>
-          <div class="metric">Zero</div>
-          <div class="label">App Downloads Needed</div>
-        </div>
-        <div>
-          <div class="metric">60sec</div>
-          <div class="label">Client Setup Time</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Industries / Tabs -->
-    <section class="industries" id="industries">
-      <h2 class="section-title">One Platform. Every Industry.</h2>
-      <p class="section-sub">Choose your industry to see ViewAR in action</p>
-
-      <div class="tabs" id="tabs">
-        <button class="tab active" data-cat="furniture">Furniture</button>
-        <button class="tab" data-cat="restaurant">Restaurant</button>
-        <button class="tab" data-cat="retail">Retail</button>
-        <button class="tab" data-cat="real-estate">Real Estate</button>
-      </div>
-
-      <div id="content"></div>
-    </section>
-
-    <!-- CTA -->
-    <section class="cta" id="pricing">
-      <h2>Ready to Transform Your Business with AR?</h2>
-      <p>
-        Join forward-thinking businesses already using Jay Quantum ViewAR to
-        increase sales and engagement.
-      </p>
-      <button class="btn-cyan">Book Your Free Demo</button>
-      <div class="fineprint">
-        No credit card required · Setup in 60 seconds · Cancel anytime
-      </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-left">
-        <img
-          class="footer-logo"
-          src="https://i.postimg.cc/Zq7Jycjq/Whats-App-Image-2026-04-20-at-01-53-48-removebg-preview.png"
-          alt="Jay Quantum"
-        />
-        <span class="footer-tag">Powering the future of AR commerce</span>
-      </div>
-      <div class="footer-right">© 2025 Jay Quantum. All rights reserved.</div>
-    </footer>
-
-    <!-- AR Modal -->
-    <div class="modal" id="modal">
-      <div class="modal-box">
-        <div class="modal-head">
-          <div class="modal-title" id="modal-title">Product</div>
-          <button class="close-btn" id="close-btn" aria-label="Close">
-            &times;
-          </button>
-        </div>
-        <div style="position: relative">
-          <model-viewer
-            id="viewer"
-            ar
-            ar-modes="webxr scene-viewer quick-look"
-            camera-controls
-            auto-rotate
-            shadow-intensity="1"
-            alt="3D product"
-          >
-            <button class="ar-launch" slot="ar-button">
-              View in Your Space (AR)
-            </button>
-          </model-viewer>
-        </div>
-      </div>
+      </model-viewer>
+      <div class="ar-direct-title" id="ar-direct-title">AR Viewer</div>
     </div>
 
+    <!-- Full landing page (hidden when ?model= param exists) -->
+    <div id="landing-page">
+
+      <!-- Navigation -->
+      <nav class="navbar">
+        <a href="#top">
+          <img
+            class="nav-logo"
+            src="https://i.postimg.cc/Zq7Jycjq/Whats-App-Image-2026-04-20-at-01-53-48-removebg-preview.png"
+            alt="Jay Quantum"
+          />
+        </a>
+        <div class="nav-links">
+          <a class="link" href="#features">Features</a>
+          <a class="link" href="#industries">Industries</a>
+          <a class="link" href="#pricing">Pricing</a>
+          <a class="link" href="mailto:hello@jayquantum.com">Contact</a>
+          <button class="btn-cyan" onclick="location.href='mailto:hello@jayquantum.com'">
+            Get Started
+          </button>
+        </div>
+      </nav>
+
+      <!-- Hero -->
+      <section class="hero" id="top">
+        <span class="badge">Powered by AI + Augmented Reality</span>
+        <h1>Let Your Customers Experience Products Before They Buy</h1>
+        <p class="sub">
+          Jay Quantum ViewAR transforms how businesses showcase products —
+          bringing furniture, food, real estate and retail to life in augmented
+          reality, directly in your customer's space.
+        </p>
+        <div class="hero-buttons">
+          <button class="btn-cyan" onclick="document.getElementById('industries').scrollIntoView({behavior:'smooth'})">
+            View Live Demo
+          </button>
+          <button class="btn-outline" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">
+            Book Free Demo Call
+          </button>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="num">500+</div>
+            <div class="lbl">AR Sessions</div>
+          </div>
+          <div class="stat">
+            <div class="num">4</div>
+            <div class="lbl">Industries</div>
+          </div>
+          <div class="stat">
+            <div class="num">Any</div>
+            <div class="lbl">Works on Any Device</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trust bar -->
+      <section class="trust" id="features">
+        <div class="trust-grid">
+          <div>
+            <div class="metric">10x</div>
+            <div class="label">Higher Engagement</div>
+          </div>
+          <div>
+            <div class="metric">40%</div>
+            <div class="label">More Conversions</div>
+          </div>
+          <div>
+            <div class="metric">Zero</div>
+            <div class="label">App Downloads Needed</div>
+          </div>
+          <div>
+            <div class="metric">60sec</div>
+            <div class="label">Client Setup Time</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Industries / Tabs -->
+      <section class="industries" id="industries">
+        <h2 class="section-title">One Platform. Every Industry.</h2>
+        <p class="section-sub">Choose your industry to see ViewAR in action</p>
+
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-cat="furniture">Furniture</button>
+          <button class="tab" data-cat="restaurant">Restaurant</button>
+          <button class="tab" data-cat="retail">Retail</button>
+          <button class="tab" data-cat="real-estate">Real Estate</button>
+        </div>
+
+        <div id="content"></div>
+      </section>
+
+      <!-- CTA -->
+      <section class="cta" id="pricing">
+        <h2>Ready to Transform Your Business with AR?</h2>
+        <p>
+          Join forward-thinking businesses already using Jay Quantum ViewAR to
+          increase sales and engagement.
+        </p>
+        <button class="btn-cyan">Book Your Free Demo</button>
+        <div class="fineprint">
+          No credit card required · Setup in 60 seconds · Cancel anytime
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="footer" id="contact">
+        <div class="footer-left">
+          <img
+            class="footer-logo"
+            src="https://i.postimg.cc/Zq7Jycjq/Whats-App-Image-2026-04-20-at-01-53-48-removebg-preview.png"
+            alt="Jay Quantum"
+          />
+          <span class="footer-tag">Powering the future of AR commerce</span>
+        </div>
+        <div class="footer-right">© 2025 Jay Quantum. All rights reserved.</div>
+      </footer>
+
+      <!-- AR Modal (for demo products) -->
+      <div class="modal" id="modal">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div class="modal-title" id="modal-title">Product</div>
+            <button class="close-btn" id="close-btn" aria-label="Close">
+              &times;
+            </button>
+          </div>
+          <div style="position: relative">
+            <model-viewer
+              id="viewer"
+              ar
+              ar-modes="webxr scene-viewer quick-look"
+              camera-controls
+              auto-rotate
+              shadow-intensity="1"
+              alt="3D product"
+            >
+              <button class="ar-launch" slot="ar-button">
+                View in Your Space (AR)
+              </button>
+            </model-viewer>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end #landing-page -->
+
     <script>
-      const products = {
-        furniture: [
-          {
-            name: "Modern Chair",
-            src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/3d-models/ddb9bb01edd32b1cd35b8b8d533d1e96aaf1bba4/chair.glb"
-id="ar-model",
-          },
-        ],
-        restaurant: [
-          {
-            name: "Classic Burger",
-            src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/Burger-food/ac64d2c04a4d3ae77f79d12c8556896d85728ae0/burger.glb",
-          },
-        ],
-        retail: [
-          {
-            name: "White Sneaker",
-            src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/Sneaker-shoe/12417e7d81ff2e6d4346f05b227c7bd67927fe41/unbranded_white_sneaker.glb",
-          },
-        ],
-        "real-estate": [
-          {
-            name: "Family House",
-            src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/House-Building/70eef6f7b9d1be674688ff4ec5cb87925b991470/residential_family_house.glb",
-          },
-        ],
-      };
+      // ── Check for ?model= parameter first ──────────────────────────────────
+      const params = new URLSearchParams(window.location.search);
+      const modelUrl = params.get('model');
+      const modelName = params.get('name') || 'AR Viewer';
 
-      const content = document.getElementById("content");
-      const tabs = document.querySelectorAll(".tab");
-      const modal = document.getElementById("modal");
-      const viewer = document.getElementById("viewer");
-      const modalTitle = document.getElementById("modal-title");
-      const closeBtn = document.getElementById("close-btn");
+      if (modelUrl && modelUrl.length > 0) {
+        // Hide landing page, show direct AR viewer
+        document.getElementById('landing-page').style.display = 'none';
+        const directMode = document.getElementById('ar-direct-mode');
+        directMode.classList.add('active');
+        document.getElementById('ar-direct-viewer').src = decodeURIComponent(modelUrl);
+        document.getElementById('ar-direct-title').textContent = decodeURIComponent(modelName);
+      } else {
+        // ── Normal landing page logic ─────────────────────────────────────────
+        const products = {
+          furniture: [
+            {
+              name: "Modern Chair",
+              src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/3d-models/ddb9bb01edd32b1cd35b8b8d533d1e96aaf1bba4/chair.glb",
+            },
+          ],
+          restaurant: [
+            {
+              name: "Classic Burger",
+              src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/Burger-food/ac64d2c04a4d3ae77f79d12c8556896d85728ae0/burger.glb",
+            },
+          ],
+          retail: [
+            {
+              name: "White Sneaker",
+              src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/Sneaker-shoe/12417e7d81ff2e6d4346f05b227c7bd67927fe41/unbranded_white_sneaker.glb",
+            },
+          ],
+          "real-estate": [
+            {
+              name: "Family House",
+              src: "https://raw.githubusercontent.com/mehwishrafiq87-a11y/House-Building/70eef6f7b9d1be674688ff4ec5cb87925b991470/residential_family_house.glb",
+            },
+          ],
+        };
 
-      function render(category) {
-        const items = products[category] || [];
-        content.innerHTML =
-          '<div class="grid">' +
-          items
-            .map(
-              (p) => `
-            <div class="card">
-              <div class="card-thumb">3D Preview</div>
-              <div class="card-name">${p.name}</div>
-              <button class="ar-button" data-src="${p.src}" data-name="${p.name}">View in AR</button>
-            </div>
-          `,
-            )
-            .join("") +
-          "</div>";
+        const content = document.getElementById("content");
+        const tabs = document.querySelectorAll(".tab");
+        const modal = document.getElementById("modal");
+        const viewer = document.getElementById("viewer");
+        const modalTitle = document.getElementById("modal-title");
+        const closeBtn = document.getElementById("close-btn");
 
-        content.querySelectorAll(".ar-button").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            const src = btn.getAttribute("data-src");
-            const name = btn.getAttribute("data-name");
-            modalTitle.textContent = name;
-            viewer.setAttribute("src", src);
-            modal.classList.add("open");
+        function render(category) {
+          const items = products[category] || [];
+          content.innerHTML =
+            '<div class="grid">' +
+            items
+              .map(
+                (p) => `
+              <div class="card">
+                <div class="card-thumb">3D Preview</div>
+                <div class="card-name">${p.name}</div>
+                <button class="ar-button" data-src="${p.src}" data-name="${p.name}">View in AR</button>
+              </div>
+            `,
+              )
+              .join("") +
+            "</div>";
+
+          content.querySelectorAll(".ar-button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const src = btn.getAttribute("data-src");
+              const name = btn.getAttribute("data-name");
+              modalTitle.textContent = name;
+              viewer.setAttribute("src", src);
+              modal.classList.add("open");
+            });
+          });
+        }
+
+        tabs.forEach((t) => {
+          t.addEventListener("click", () => {
+            tabs.forEach((x) => x.classList.remove("active"));
+            t.classList.add("active");
+            render(t.getAttribute("data-cat"));
           });
         });
-      }
 
-      tabs.forEach((t) => {
-        t.addEventListener("click", () => {
-          tabs.forEach((x) => x.classList.remove("active"));
-          t.classList.add("active");
-          render(t.getAttribute("data-cat"));
-        });
-      });
-
-      closeBtn.addEventListener("click", () => {
-        modal.classList.remove("open");
-        viewer.removeAttribute("src");
-      });
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) {
+        closeBtn.addEventListener("click", () => {
           modal.classList.remove("open");
           viewer.removeAttribute("src");
-        }
-      });
+        });
 
-      render("furniture");
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            modal.classList.remove("open");
+            viewer.removeAttribute("src");
+          }
+        });
+
+        render("furniture");
+      }
     </script>
-    const params = new URLSearchParams(window.location.search);
-  const modelUrl = params.get('model');
-  if(modelUrl) {
-    document.getElementById('ar-model').src = decodeURIComponent(modelUrl);
-  }
-</script>
   </body>
 </html>
