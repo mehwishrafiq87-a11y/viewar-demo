@@ -692,5 +692,11 @@ id="ar-model",
 
       render("furniture");
     </script>
+    const params = new URLSearchParams(window.location.search);
+  const modelUrl = params.get('model');
+  if(modelUrl) {
+    document.getElementById('ar-model').src = decodeURIComponent(modelUrl);
+  }
+</script>
   </body>
 </html>
