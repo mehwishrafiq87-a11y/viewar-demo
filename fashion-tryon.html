@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Jay Quantum ViewAR — Fashion Try-On</title>
+
+    <!--
+    ================================================================
+    JAY QUANTUM VIEWAR — FASHION TRY-ON MODULE v1.2
+    Module 1: Shoe Try-On
+
+    FIXED IN v1.2:
+    1. Coordinate axis swap — Android back camera gives landscape video
+       (1280×720) while phone is portrait. MediaPipe X and Y are
+       physically swapped on screen. Now auto-detected and corrected.
+
+    2. Shoe invisible — BASE_ROTATION_X=-PI/2 combined with group Z
+       rotation made the shoe face edge-on (a thin sliver). Removed
+       pre-rotation entirely; the shoe now self-orients toward camera
+       using lookAt so it is always face-on regardless of GLB export.
+
+    3. Double-sided materials — all shoe mesh materials now set to
+       THREE.DoubleSide so the shoe is visible regardless of normal
+       direction in the source file.
+
+    TUNING URL PARAMS (add to URL for quick testing):
+    ?debug=1         → show coloured circles on detected foot landmarks
+    ?scale=1.4       → scale multiplier (default 1.2, raise if shoe too small)
+    ?flip=1          → if shoe faces wrong direction, try this flag
+    ================================================================
+    -->
+
+    <style>
+        *, *::before, *::after {
+            margin: 0; padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Camera feed — full-screen background ── */
+        #camera-feed {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* ── Three.js AR canvas — transparent overlay ── */
+        #ar-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* ── Debug landmark canvas (z-index 12, shown with ?debug=1) ── */
+        #debug-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 12;
+            display: none;
+        }
+        #debug-canvas.active { display: block; }
+
+        /* ── Loading screen ── */
+        #loading-screen {
+            position: absolute; inset: 0;
+            background: #080810;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 200; padding: 40px;
+            transition: opacity 0.6s ease;
+        }
+        .loading-logo-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .loading-logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg,#a78bfa,#7c3aed);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+        .loading-logo-text { font-size: 1.4rem; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .loading-tagline {
+            font-size: .75rem; color: rgba(167,139,250,.7);
+            letter-spacing: 2px; text-transform: uppercase; margin-bottom: 48px;
+        }
+        .loading-ring {
+            width: 56px; height: 56px;
+            border: 2px solid rgba(124,58,237,.2);
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 24px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-bar-track {
+            width: 220px; height: 2px;
+            background: rgba(255,255,255,.08);
+            border-radius: 2px; overflow: hidden; margin-bottom: 16px;
+        }
+        .loading-bar-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg,#7c3aed,#a78bfa);
+            border-radius: 2px; transition: width .4s ease;
+        }
+        #loading-status { font-size: .75rem; color: rgba(255,255,255,.35); letter-spacing: .5px; }
+
+        /* ── Camera permission screen ── */
+        #permission-screen {
+            position: absolute; inset: 0;
+            background: #080810;
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 180; padding: 40px; text-align: center;
+        }
+        #permission-screen.active { display: flex; }
+        .perm-icon {
+            width: 80px; height: 80px;
+            background: rgba(124,58,237,.12);
+            border: 1px solid rgba(124,58,237,.3);
+            border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; margin-bottom: 28px;
+        }
+        .perm-title { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 12px; }
+        .perm-desc { font-size: .85rem; color: rgba(255,255,255,.45); line-height: 1.6; max-width: 280px; margin-bottom: 36px; }
+        .perm-btn {
+            background: linear-gradient(135deg,#7c3aed,#a78bfa);
+            color: #fff; border: none;
+            padding: 16px 40px; border-radius: 100px;
+            font-size: .95rem; font-weight: 600; font-family: inherit; cursor: pointer;
+        }
+
+        /* ── UI overlay ── */
+        #ui-overlay { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+
+        /* Top bar */
+        #top-bar {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: 52px 20px 28px;
+            background: linear-gradient(to bottom, rgba(0,0,0,.75) 0%, transparent 100%);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .back-btn {
+            width: 38px; height: 38px;
+            background: rgba(255,255,255,.1);
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 50%; color: #fff;
+            font-size: 1rem; cursor: pointer;
+            pointer-events: all;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        }
+        #product-name-display {
+            color: #fff; font-size: .95rem; font-weight: 600;
+            flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .mode-badge {
+            background: rgba(124,58,237,.25);
+            border: 1px solid rgba(167,139,250,.35);
+            color: #c4b5fd; font-size: .65rem; font-weight: 700;
+            padding: 4px 10px; border-radius: 100px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        /* Foot guide — shown while waiting for detection */
+        #guide-overlay {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            opacity: 0; transition: opacity .5s ease;
+            display: flex; flex-direction: column; align-items: center; gap: 16px;
+        }
+        #guide-overlay.visible { opacity: 1; }
+        .guide-box {
+            width: 200px; height: 140px;
+            border: 1.5px dashed rgba(255,255,255,.3);
+            border-radius: 24px;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .guide-box::before, .guide-box::after {
+            content: ''; position: absolute;
+            width: 20px; height: 20px;
+            border-color: rgba(167,139,250,.8); border-style: solid;
+        }
+        .guide-box::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
+        .guide-box::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
+        .guide-feet-icon { font-size: 2.5rem; animation: bounce 1.5s ease-in-out infinite; }
+        @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        .guide-text { font-size: .8rem; color: rgba(255,255,255,.65); text-align: center; }
+        .guide-arrow { font-size: 1.2rem; color: rgba(167,139,250,.6); animation: bounce 1.5s ease-in-out infinite; }
+
+        /* Tracking dots (top right) */
+        #tracking-dots { position: absolute; top: 120px; right: 16px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+        .track-dot {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(0,0,0,.4); padding: 5px 10px 5px 8px;
+            border-radius: 100px; opacity: 0; transition: opacity .3s;
+        }
+        .track-dot.active { opacity: 1; }
+        .track-dot-circle { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.3); transition: background .3s; }
+        .track-dot.tracking .track-dot-circle { background: #4ade80; }
+        .track-dot-label { font-size: .65rem; color: rgba(255,255,255,.6); font-weight: 500; }
+
+        /* Bottom controls */
+        #bottom-controls {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 24px 24px 48px;
+            background: linear-gradient(to top, rgba(0,0,0,.75) 0%, transparent 100%);
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
+        }
+        #status-msg {
+            background: rgba(8,8,16,.6);
+            border: 1px solid rgba(255,255,255,.08);
+            color: rgba(255,255,255,.85);
+            font-size: .8rem; font-weight: 500;
+            padding: 8px 18px; border-radius: 100px; text-align: center;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            max-width: 320px;
+        }
+        .btn-row { display: flex; gap: 20px; align-items: center; pointer-events: all; }
+        .side-btn {
+            background: rgba(255,255,255,.1);
+            border: 1px solid rgba(255,255,255,.12);
+            color: #fff; padding: 10px 18px; border-radius: 100px;
+            font-size: .8rem; font-weight: 600; font-family: inherit; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        }
+        #capture-btn {
+            width: 68px; height: 68px; background: #fff;
+            border: 3px solid rgba(255,255,255,.4); border-radius: 50%;
+            font-size: 1.6rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,.4);
+            pointer-events: all;
+        }
+
+        /* Toast */
+        #toast {
+            position: absolute; bottom: 160px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(8,8,16,.85);
+            border: 1px solid rgba(255,255,255,.1);
+            color: #fff; padding: 10px 20px; border-radius: 100px;
+            font-size: .8rem; font-weight: 500;
+            z-index: 50; opacity: 0; transition: opacity .3s;
+            white-space: nowrap; pointer-events: none;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <!-- Camera feed -->
+    <video id="camera-feed" autoplay muted playsinline webkit-playsinline></video>
+
+    <!-- Three.js AR canvas (shoes render here) -->
+    <canvas id="ar-canvas"></canvas>
+
+    <!-- Debug canvas — coloured circles at foot landmarks (?debug=1) -->
+    <canvas id="debug-canvas"></canvas>
+
+    <!-- Loading screen -->
+    <div id="loading-screen">
+        <div class="loading-logo-wrap">
+            <div class="loading-logo-icon">👟</div>
+            <div class="loading-logo-text">Jay Quantum</div>
+        </div>
+        <div class="loading-tagline">ViewAR Fashion Studio</div>
+        <div class="loading-ring"></div>
+        <div class="loading-bar-track">
+            <div class="loading-bar-fill" id="loading-bar"></div>
+        </div>
+        <div id="loading-status">Initializing AI engine…</div>
+    </div>
+
+    <!-- Permission screen -->
+    <div id="permission-screen">
+        <div class="perm-icon">📷</div>
+        <div class="perm-title">Camera Access Required</div>
+        <div class="perm-desc">
+            To try on shoes in AR, ViewAR needs your camera.
+            Video is processed on-device and never uploaded.
+        </div>
+        <button class="perm-btn" id="request-camera-btn">Allow Camera →</button>
+    </div>
+
+    <!-- UI overlay -->
+    <div id="ui-overlay">
+        <div id="top-bar">
+            <button class="back-btn" id="back-btn">←</button>
+            <span id="product-name-display">Loading…</span>
+            <span class="mode-badge" id="mode-badge">Try-On</span>
+        </div>
+
+        <div id="guide-overlay">
+            <div class="guide-box"><div class="guide-feet-icon">👟</div></div>
+            <div class="guide-text">Point camera at your feet</div>
+            <div class="guide-arrow">↓</div>
+        </div>
+
+        <div id="tracking-dots">
+            <div class="track-dot" id="dot-left">
+                <div class="track-dot-circle"></div>
+                <span class="track-dot-label">L foot</span>
+            </div>
+            <div class="track-dot" id="dot-right">
+                <div class="track-dot-circle"></div>
+                <span class="track-dot-label">R foot</span>
+            </div>
+        </div>
+
+        <div id="bottom-controls">
+            <div id="status-msg">Initializing…</div>
+            <div class="btn-row">
+                <button class="side-btn" id="flip-camera-btn">🔄 Flip</button>
+                <button id="capture-btn">📸</button>
+                <button class="side-btn" id="share-btn">↗ Share</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <!-- ES Module shims (importmap polyfill for iOS <16.4) -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three":         "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+
+    import * as THREE from 'three';
+    import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js';
+
+
+    // ================================================================
+    // SECTION 1 — URL PARAMETERS
+    // ================================================================
+    const urlParams    = new URLSearchParams(window.location.search);
+    const MODEL_URL    = urlParams.get('model');
+    const TRY_ON_TYPE  = (urlParams.get('type') || 'shoe').toLowerCase();
+    const PRODUCT_NAME = urlParams.get('name') || 'Fashion Item';
+
+    // ?debug=1  → show coloured circles at every detected foot landmark
+    // Useful for verifying coordinate mapping is correct on your device
+    const SHOW_DEBUG   = urlParams.get('debug') === '1';
+
+    // ?scale=1.4  → size multiplier (raise if shoe appears too small)
+    const SCALE_MULT   = parseFloat(urlParams.get('scale') || '1.2');
+
+    // ?flip=1  → mirror shoe direction (use if toe points the wrong way)
+    const FLIP_DIR     = urlParams.get('flip') === '1';
+
+    document.getElementById('product-name-display').textContent = PRODUCT_NAME;
+    const modeBadgeEl = document.getElementById('mode-badge');
+    if      (TRY_ON_TYPE === 'clothing')  modeBadgeEl.textContent = 'Clothing Try-On';
+    else if (TRY_ON_TYPE === 'accessory') modeBadgeEl.textContent = 'Face Try-On';
+    else                                   modeBadgeEl.textContent = 'Shoe Try-On';
+
+
+    // ================================================================
+    // SECTION 2 — GLOBAL STATE
+    // ================================================================
+    let scene, threeCamera, renderer;
+    let leftShoeGroup, rightShoeGroup;
+    let modelLoaded       = false;
+    let poseLandmarker    = null;
+    let videoElement      = document.getElementById('camera-feed');
+    let debugCanvas       = document.getElementById('debug-canvas');
+    let debugCtx          = debugCanvas.getContext('2d');
+    let lastVideoTime     = -1;
+    let animationRunning  = false;
+    let currentFacing     = 'environment';
+    let feetTracked       = false;
+
+
+    // ================================================================
+    // SECTION 3 — UI HELPERS
+    // ================================================================
+    function setProgress(pct, msg) {
+        document.getElementById('loading-bar').style.width = pct + '%';
+        document.getElementById('loading-status').textContent = msg;
+    }
+    function hideLoading() {
+        const el = document.getElementById('loading-screen');
+        el.style.opacity = '0';
+        setTimeout(() => el.style.display = 'none', 600);
+    }
+    function setStatus(msg)  { document.getElementById('status-msg').textContent = msg; }
+    function setGuide(show)  {
+        document.getElementById('guide-overlay').classList.toggle('visible', show);
+    }
+    function showToast(msg, ms = 2800) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), ms);
+    }
+    function setDots(leftOK, rightOK) {
+        const dl = document.getElementById('dot-left');
+        const dr = document.getElementById('dot-right');
+        const any = leftOK || rightOK;
+        dl.classList.toggle('active',   any);
+        dl.classList.toggle('tracking', leftOK);
+        dr.classList.toggle('active',   any);
+        dr.classList.toggle('tracking', rightOK);
+    }
+
+
+    // ================================================================
+    // SECTION 4 — THREE.JS INIT
+    // ================================================================
+    // Orthographic camera: 1 unit = 1 CSS pixel.
+    // Transparent background so the camera feed shows through.
+    function initThreeJS() {
+        const W = window.innerWidth, H = window.innerHeight;
+        scene = new THREE.Scene();
+
+        threeCamera = new THREE.OrthographicCamera(
+            -W/2, W/2, H/2, -H/2, -2000, 2000
+        );
+        threeCamera.position.z = 1000;
+
+        renderer = new THREE.WebGLRenderer({
+            canvas: document.getElementById('ar-canvas'),
+            alpha: true,
+            antialias: true,
+            premultipliedAlpha: false,
+            preserveDrawingBuffer: true   // needed for screenshot capture
+        });
+        renderer.setSize(W, H);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
+        renderer.setClearColor(0x000000, 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+        // Lighting — good for shoe materials
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const key = new THREE.DirectionalLight(0xffffff, 1.0);
+        key.position.set(0, 5, 10); scene.add(key);
+        const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+        fill.position.set(0, -5, 6); scene.add(fill);
+        const rim = new THREE.DirectionalLight(0xffffff, 0.2);
+        rim.position.set(0, 0, -10); scene.add(rim);
+    }
+
+
+    // ================================================================
+    // SECTION 5 — GLB MODEL LOADING
+    // ================================================================
+    function loadShoeModel(url) {
+        return new Promise((resolve) => {
+            setProgress(40, 'Loading 3D shoe model…');
+            const loader = new GLTFLoader();
+
+            loader.load(url,
+                (gltf) => {
+                    const model = gltf.scene;
+
+                    // ── FIX 1: Make all meshes double-sided ──────────────────
+                    // This ensures the shoe is visible regardless of which way
+                    // the normals face in the source file.
+                    model.traverse((child) => {
+                        if (child.isMesh) {
+                            // Handle both single material and material arrays
+                            const mats = Array.isArray(child.material)
+                                ? child.material
+                                : [child.material];
+                            mats.forEach(m => {
+                                m.side = THREE.DoubleSide;
+                                m.needsUpdate = true;
+                            });
+                        }
+                    });
+
+                    // ── Measure bounding box ──────────────────────────────────
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    let maxDim = Math.max(size.x, size.y, size.z);
+
+                    // Guard: if bounding box is degenerate (empty or huge),
+                    // use 1.0 as fallback so normalizeScale stays sensible.
+                    if (!isFinite(maxDim) || maxDim < 0.0001 || maxDim > 10000) {
+                        console.warn('[ViewAR] Degenerate bounding box, maxDim=' + maxDim + ', using fallback 1.0');
+                        maxDim = 1.0;
+                    }
+                    console.log('[ViewAR] Shoe bounding box:', size.x.toFixed(3), size.y.toFixed(3), size.z.toFixed(3), '→ maxDim', maxDim.toFixed(4));
+
+                    // ── Normalize to 1 world unit ─────────────────────────────
+                    const normalizeScale = 1.0 / maxDim;
+                    model.scale.setScalar(normalizeScale);
+
+                    // ── Center at origin ──────────────────────────────────────
+                    const box2 = new THREE.Box3().setFromObject(model);
+                    const center = box2.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+
+                    // ── FIX 2: NO pre-rotation ────────────────────────────────
+                    // Previously we applied rotation.x = -PI/2 here.
+                    // That rotation, combined with the group's Z rotation for
+                    // foot direction, was making the shoe face edge-on to the
+                    // camera (appearing as a tiny 1-pixel sliver).
+                    //
+                    // Instead, we use a pivot + lookAt approach inside
+                    // placeShoeOnFoot() to guarantee the shoe always faces
+                    // the camera regardless of the GLB export orientation.
+
+                    // ── Create left & right shoe groups ──────────────────────
+                    leftShoeGroup = new THREE.Group();
+                    leftShoeGroup.add(model.clone(true));
+                    leftShoeGroup.visible = false;
+                    scene.add(leftShoeGroup);
+
+                    rightShoeGroup = new THREE.Group();
+                    const rightModel = model.clone(true);
+                    rightModel.scale.x *= FLIP_DIR ? 1 : -1;  // mirror for right foot
+                    rightShoeGroup.add(rightModel);
+                    rightShoeGroup.visible = false;
+                    scene.add(rightShoeGroup);
+
+                    modelLoaded = true;
+                    setProgress(80, 'Shoe model ready!');
+                    resolve();
+                },
+                (xhr) => {
+                    if (xhr.total > 0)
+                        setProgress(40 + (xhr.loaded/xhr.total)*35, `Loading model: ${Math.round(xhr.loaded/xhr.total*100)}%`);
+                },
+                (err) => {
+                    console.error('[ViewAR] GLB load error:', err);
+                    setStatus('⚠️ Could not load model — check the URL');
+                    setProgress(80, 'Model load failed');
+                    resolve();   // continue so camera still starts
+                }
+            );
+        });
+    }
+
+
+    // ================================================================
+    // SECTION 6 — MEDIAPIPE POSE LANDMARKER
+    // ================================================================
+    async function initMediaPipe() {
+        setProgress(8, 'Loading AI pose detection…');
+        const { PoseLandmarker, FilesetResolver } = await import(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/vision_bundle.mjs'
+        );
+        setProgress(22, 'Loading pose model…');
+        const vision = await FilesetResolver.forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm'
+        );
+        setProgress(35, 'Building pose detector…');
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+                delegate: 'GPU'
+            },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+            minPoseDetectionConfidence: 0.5,
+            minPosePresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        console.log('[ViewAR] MediaPipe PoseLandmarker ready');
+    }
+
+
+    // ================================================================
+    // SECTION 7 — CAMERA
+    // ================================================================
+    async function startCamera(facingMode = 'environment') {
+        if (videoElement.srcObject)
+            videoElement.srcObject.getTracks().forEach(t => t.stop());
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: {ideal: facingMode}, width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30, min: 15} },
+                audio: false
+            });
+            videoElement.srcObject = stream;
+            currentFacing = facingMode;
+            await new Promise(r => { videoElement.onloadedmetadata = r; setTimeout(r, 3000); });
+            await videoElement.play();
+            console.log('[ViewAR] Camera:', facingMode, videoElement.videoWidth + 'x' + videoElement.videoHeight);
+
+            // Resize debug canvas to match screen
+            debugCanvas.width  = window.innerWidth;
+            debugCanvas.height = window.innerHeight;
+
+        } catch (err) {
+            if (err.name === 'NotAllowedError') {
+                document.getElementById('permission-screen').classList.add('active');
+                throw err;
+            }
+            // Retry with simpler constraints
+            const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode}, audio: false});
+            videoElement.srcObject = stream;
+            await new Promise(r => { videoElement.onloadedmetadata = r; setTimeout(r, 3000); });
+            await videoElement.play();
+        }
+    }
+
+
+    // ================================================================
+    // SECTION 8 — COORDINATE TRANSFORMATION  (the critical fix)
+    // ================================================================
+    //
+    // THE PROBLEM ON ANDROID:
+    //   The back camera streams in LANDSCAPE (e.g., 1280×720) even
+    //   when the phone is held in PORTRAIT (e.g., 412×892).
+    //   The browser rotates the video for display, but MediaPipe
+    //   processes the RAW landscape frame.
+    //
+    //   This means MediaPipe's X axis runs along the phone's Y axis
+    //   (top→bottom in portrait), and vice versa.
+    //
+    //   Without correction, the heel landmark ends up mapping to the
+    //   horizontal centre of the screen instead of the foot's actual
+    //   vertical position — so the shoe appears in the wrong place.
+    //
+    // THE FIX:
+    //   Detect when video is landscape on a portrait screen.
+    //   When true, swap and/or flip the landmark axes before mapping
+    //   to screen coordinates.
+    //   Back camera on Android is rotated 90° clockwise:
+    //     portrait_x = (1 - lm.y) * screenW
+    //     portrait_y =       lm.x * screenH
+
+    function landmarkToScreen(lm) {
+        const W  = window.innerWidth;
+        const H  = window.innerHeight;
+        const vW = videoElement.videoWidth  || W;
+        const vH = videoElement.videoHeight || H;
+
+        const portraitScreen   = H > W;
+        const landscapeVideo   = vW > vH;
+        const axisSwapNeeded   = portraitScreen && landscapeVideo;
+
+        if (axisSwapNeeded) {
+            // Back camera is rotated 90° clockwise relative to portrait screen.
+            // MediaPipe lm.x runs top→bottom in portrait (= portrait y).
+            // MediaPipe lm.y runs right→left in portrait (= portrait x, reversed).
+            return {
+                x: (1 - lm.y) * W,
+                y: lm.x * H
+            };
+        }
+
+        // Video and screen are same orientation — direct mapping
+        return { x: lm.x * W, y: lm.y * H };
+    }
+
+    function landmarkToWorld(lm) {
+        const W = window.innerWidth, H = window.innerHeight;
+        const s = landmarkToScreen(lm);
+        // Three.js ortho: origin at centre, Y increases upward
+        return new THREE.Vector2(s.x - W/2, H/2 - s.y);
+    }
+
+
+    // ================================================================
+    // SECTION 9 — DEBUG CANVAS
+    // ================================================================
+    // Draws coloured numbered circles at each detected foot landmark.
+    // Enable with ?debug=1 in the URL.
+    // Colours: heel=red(L)/orange(R), ankle=blue(L)/cyan(R), toe=green(L)/lime(R)
+    const DEBUG_COLORS = { 27:'#60a5fa', 28:'#22d3ee', 29:'#f87171', 30:'#fb923c', 31:'#4ade80', 32:'#a3e635' };
+
+    function drawDebugDots(landmarks) {
+        debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+        if (!landmarks) return;
+
+        [27, 28, 29, 30, 31, 32].forEach(idx => {
+            const lm = landmarks[idx];
+            if (!lm || lm.visibility < 0.2) return;
+            const s = landmarkToScreen(lm);
+            const r = 14;
+
+            // Circle
+            debugCtx.beginPath();
+            debugCtx.arc(s.x, s.y, r, 0, Math.PI * 2);
+            debugCtx.fillStyle = DEBUG_COLORS[idx] || '#fff';
+            debugCtx.fill();
+            debugCtx.strokeStyle = '#fff';
+            debugCtx.lineWidth = 2;
+            debugCtx.stroke();
+
+            // Index label
+            debugCtx.fillStyle = '#000';
+            debugCtx.font = 'bold 11px sans-serif';
+            debugCtx.textAlign = 'center';
+            debugCtx.textBaseline = 'middle';
+            debugCtx.fillText(idx, s.x, s.y);
+        });
+    }
+
+
+    // ================================================================
+    // SECTION 10 — SHOE PLACEMENT
+    // ================================================================
+    // Places, scales and orients a shoe on a detected foot.
+    //
+    // ROTATION APPROACH (FIX 2 continued):
+    //   Instead of pre-rotating the model at load time (which caused
+    //   the edge-on invisible-shoe bug), we:
+    //   1. Keep the model in its natural GLB orientation.
+    //   2. Point the shoe GROUP along the foot direction in 2D (Z rotation).
+    //   3. Force the group to face the camera using quaternion lookAt.
+    //      This guarantees the shoe face is always toward the camera.
+
+    const VIS_MIN       = 0.3;   // Minimum MediaPipe visibility to trust a landmark
+    const SMOOTH_POS    = 0.55;  // Position smoothing (0=none, 0.9=very smooth)
+    const SMOOTH_SCL    = 0.65;  // Scale smoothing
+
+    function placeShoeOnFoot(heelLm, ankleLm, toeLm, shoeGroup, isMirror) {
+        if (!shoeGroup || !modelLoaded) return false;
+
+        const heelOK  = heelLm.visibility  > VIS_MIN;
+        const ankleOK = ankleLm.visibility > VIS_MIN;
+        const toeOK   = toeLm.visibility   > VIS_MIN;
+
+        const nVis = (heelOK?1:0) + (ankleOK?1:0) + (toeOK?1:0);
+        if (nVis < 2) { shoeGroup.visible = false; return false; }
+
+        const heelW  = heelOK  ? landmarkToWorld(heelLm)  : null;
+        const ankleW = ankleOK ? landmarkToWorld(ankleLm) : null;
+        const toeW   = toeOK   ? landmarkToWorld(toeLm)   : null;
+
+        let footCenter, footAngle, footLength;
+
+        if (heelOK && toeOK) {
+            footCenter = new THREE.Vector2((heelW.x + toeW.x)/2, (heelW.y + toeW.y)/2);
+            footLength = heelW.distanceTo(toeW);
+            footAngle  = Math.atan2(toeW.y - heelW.y, toeW.x - heelW.x);
+
+        } else if (ankleOK && toeOK) {
+            footCenter = new THREE.Vector2((ankleW.x + toeW.x)/2, (ankleW.y + toeW.y)/2);
+            footLength = ankleW.distanceTo(toeW) * 1.4;
+            footAngle  = Math.atan2(toeW.y - ankleW.y, toeW.x - ankleW.x);
+
+        } else if (heelOK && ankleOK) {
+            const dir = new THREE.Vector2(ankleW.x - heelW.x, ankleW.y - heelW.y);
+            footLength = heelW.distanceTo(ankleW) * 2;
+            footAngle  = Math.atan2(dir.y, dir.x);
+            const dn = dir.clone().normalize();
+            footCenter = new THREE.Vector2(heelW.x + dn.x * footLength/2, heelW.y + dn.y * footLength/2);
+
+        } else {
+            shoeGroup.visible = false; return false;
+        }
+
+        if (footLength < 10 || !isFinite(footAngle)) {
+            shoeGroup.visible = false; return false;
+        }
+
+        shoeGroup.visible = true;
+
+        // ── Position (smoothed) ──────────────────────────────────────
+        if (!shoeGroup.userData.placed) {
+            shoeGroup.position.set(footCenter.x, footCenter.y, 0);
+            shoeGroup.userData.placed = true;
+        } else {
+            shoeGroup.position.x = shoeGroup.position.x * SMOOTH_POS + footCenter.x * (1 - SMOOTH_POS);
+            shoeGroup.position.y = shoeGroup.position.y * SMOOTH_POS + footCenter.y * (1 - SMOOTH_POS);
+        }
+        shoeGroup.position.z = 0;
+
+        // ── FIX 2: Force shoe to always face camera ──────────────────
+        // quaternion.setFromEuler with just Z rotation keeps the shoe
+        // flat in the XY plane (always facing the ortho camera) while
+        // rotating it to align with the foot direction.
+        // This replaces the broken rotation.x + rotation.z approach.
+        const euler = new THREE.Euler(0, 0, footAngle + (FLIP_DIR ? Math.PI : 0), 'XYZ');
+        shoeGroup.quaternion.setFromEuler(euler);
+
+        // ── Scale (smoothed) ─────────────────────────────────────────
+        // footLength is in world units = CSS pixels (ortho 1:1 camera)
+        // SCALE_MULT boosts the size so the shoe covers the whole foot
+        const targetScale = footLength * SCALE_MULT;
+        const curScale    = Math.abs(shoeGroup.scale.x) || targetScale;
+        const s = curScale * SMOOTH_SCL + targetScale * (1 - SMOOTH_SCL);
+
+        shoeGroup.scale.set(isMirror ? -s : s, s, s);
+
+        return true;
+    }
+
+
+    // ================================================================
+    // SECTION 11 — ANIMATION LOOP
+    // ================================================================
+    function startLoop() {
+        animationRunning = true;
+        function frame() {
+            if (!animationRunning) return;
+            requestAnimationFrame(frame);
+
+            const newFrame = videoElement.readyState >= 2 && videoElement.currentTime !== lastVideoTime;
+            if (newFrame) {
+                lastVideoTime = videoElement.currentTime;
+                if (poseLandmarker && modelLoaded) {
+                    try {
+                        const results = poseLandmarker.detectForVideo(videoElement, performance.now());
+                        processPose(results);
+                    } catch(e) { /* frame skip is OK */ }
+                }
+            }
+            renderer.render(scene, threeCamera);
+        }
+        frame();
+    }
+
+    function processPose(results) {
+        if (!results.landmarks || !results.landmarks.length) {
+            if (leftShoeGroup)  leftShoeGroup.visible  = false;
+            if (rightShoeGroup) rightShoeGroup.visible = false;
+            if (SHOW_DEBUG) drawDebugDots(null);
+            if (feetTracked) { feetTracked = false; setGuide(true); setStatus('👣 Move feet into view'); setDots(false,false); }
+            return;
+        }
+
+        const lm = results.landmarks[0];
+        if (SHOW_DEBUG) drawDebugDots(lm);
+
+        // Landmarks: 27=L ankle, 28=R ankle, 29=L heel, 30=R heel, 31=L toe, 32=R toe
+        const leftOK  = placeShoeOnFoot(lm[29], lm[27], lm[31], leftShoeGroup,  false);
+        const rightOK = placeShoeOnFoot(lm[30], lm[28], lm[32], rightShoeGroup, true);
+        const any = leftOK || rightOK;
+
+        setDots(leftOK, rightOK);
+
+        if (any && !feetTracked) {
+            feetTracked = true;
+            setGuide(false);
+            setStatus('✨ Looking great! Walk to see them move');
+        } else if (!any && feetTracked) {
+            feetTracked = false;
+            setGuide(true);
+            setStatus('👟 Point camera down at your feet');
+        }
+    }
+
+
+    // ================================================================
+    // SECTION 12 — SCREENSHOT / SHARE
+    // ================================================================
+    async function capturePhoto() {
+        setStatus('📸 Saving…');
+        const W = window.innerWidth, H = window.innerHeight;
+        const mc = document.createElement('canvas');
+        mc.width = W * devicePixelRatio; mc.height = H * devicePixelRatio;
+        const ctx = mc.getContext('2d');
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+
+        // Composite video → AR overlay
+        const vW = videoElement.videoWidth, vH = videoElement.videoHeight;
+        const vAsp = vW/vH, sAsp = W/H;
+        let dx=0,dy=0,dw=W,dh=H;
+        if (vAsp > sAsp) { dw = H*vAsp; dx = (W-dw)/2; }
+        else             { dh = W/vAsp; dy = (H-dh)/2; }
+        ctx.drawImage(videoElement, dx, dy, dw, dh);
+        ctx.drawImage(renderer.domElement, 0, 0, W, H);
+
+        const fname = `viewar-${PRODUCT_NAME.replace(/\s+/g,'-')}.jpg`;
+        mc.toBlob(async (blob) => {
+            if (navigator.share && navigator.canShare) {
+                const f = new File([blob], fname, {type:'image/jpeg'});
+                if (navigator.canShare({files:[f]})) {
+                    try { await navigator.share({files:[f], title:PRODUCT_NAME}); setStatus('✅ Shared!'); setTimeout(()=>setStatus('✨ Looking great! Walk to see them move'),2000); return; }
+                    catch(e) {}
+                }
+            }
+            const url = URL.createObjectURL(blob);
+            Object.assign(document.createElement('a'), {href:url, download:fname}).click();
+            URL.revokeObjectURL(url);
+            showToast('📸 Photo saved!');
+            setTimeout(()=>setStatus('✨ Looking great! Walk to see them move'),500);
+        }, 'image/jpeg', 0.92);
+    }
+
+
+    // ================================================================
+    // SECTION 13 — RESIZE
+    // ================================================================
+    function handleResize() {
+        const W = window.innerWidth, H = window.innerHeight;
+        threeCamera.left=-W/2; threeCamera.right=W/2;
+        threeCamera.top=H/2;   threeCamera.bottom=-H/2;
+        threeCamera.updateProjectionMatrix();
+        renderer.setSize(W, H);
+        debugCanvas.width = W; debugCanvas.height = H;
+    }
+
+
+    // ================================================================
+    // SECTION 14 — EVENT LISTENERS
+    // ================================================================
+    document.getElementById('back-btn').addEventListener('click', () => history.length > 1 ? history.back() : window.close());
+    document.getElementById('capture-btn').addEventListener('click', capturePhoto);
+    document.getElementById('share-btn').addEventListener('click', capturePhoto);
+    document.getElementById('flip-camera-btn').addEventListener('click', async () => {
+        const next = currentFacing === 'environment' ? 'user' : 'environment';
+        try { await startCamera(next); showToast(next === 'user' ? '📷 Front camera' : '📷 Back camera'); }
+        catch(e) { showToast('⚠️ Could not switch camera'); }
+    });
+    document.getElementById('request-camera-btn').addEventListener('click', async () => {
+        document.getElementById('permission-screen').classList.remove('active');
+        try { await startCamera('environment'); } catch(e) { showToast('⚠️ Camera permission denied in settings'); }
+    });
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Show debug canvas if ?debug=1
+    if (SHOW_DEBUG) document.getElementById('debug-canvas').classList.add('active');
+
+
+    // ================================================================
+    // SECTION 15 — STARTUP
+    // ================================================================
+    async function init() {
+        try {
+            console.log('[ViewAR] v1.2 starting — type:', TRY_ON_TYPE, 'model:', MODEL_URL);
+            console.log('[ViewAR] SCALE_MULT:', SCALE_MULT, 'FLIP_DIR:', FLIP_DIR, 'DEBUG:', SHOW_DEBUG);
+
+            setProgress(4,  'Setting up 3D scene…');
+            initThreeJS();
+
+            await initMediaPipe();
+
+            if (MODEL_URL) {
+                await loadShoeModel(MODEL_URL);
+            } else {
+                console.warn('[ViewAR] No ?model= URL — running in camera-only mode');
+                setProgress(80, 'No model URL provided');
+            }
+
+            setProgress(85, 'Starting camera…');
+            try {
+                await startCamera('environment');
+            } catch(e) {
+                setProgress(90, 'Waiting for camera permission…');
+                return;
+            }
+
+            setProgress(96, 'Starting AR…');
+            startLoop();
+
+            setProgress(100, 'Ready!');
+            await new Promise(r => setTimeout(r, 350));
+            hideLoading();
+            setStatus('👟 Point camera down at your feet');
+            setGuide(true);
+            console.log('[ViewAR] Ready!');
+
+        } catch(err) {
+            console.error('[ViewAR] Fatal error:', err);
+            setProgress(0, '⚠️ Failed to start. Please refresh.');
+        }
+    }
+
+    init();
+
+    </script>
+</body>
+</html>
